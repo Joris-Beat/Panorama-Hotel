@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Panorama Hotel Manager</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Figtree:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div id="app"><div class="boot">Chargement…</div></div>
+<div id="modal-root"></div>
+<div id="toast-root"></div>
+<!-- 1. Votre configuration Firebase -->
+<script src="config.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<!-- 2. Le code de l'application : l'ordre est important -->
+<script src="js/core/utils.js"></script>
+<script src="js/core/data.js"></script>
+<script src="js/core/firebase.js"></script>
+<script src="js/core/parametres.js"></script>
+<script src="js/core/permissions.js"></script>
+<script src="js/core/metier.js"></script>
+<script src="js/core/ui.js"></script>
+<script src="js/modules/crud.js"></script>
+<script src="js/modules/reservations.js"></script>
+<script src="js/modules/folio-facture.js"></script>
+<script src="js/modules/shell.js"></script>
+<script src="js/modules/demo.js"></script>
+<script src="js/modules/dashboard.js"></script>
+<script src="js/modules/reservations-liste.js"></script>
+<script src="js/modules/planning.js"></script>
+<script src="js/modules/chambres.js"></script>
+<script src="js/modules/clients.js"></script>
+<script src="js/modules/facturation-caisse.js"></script>
+<script src="js/modules/menage.js"></script>
+<script src="js/modules/maintenance.js"></script>
+<script src="js/modules/restaurant-bar.js"></script>
+<script src="js/modules/evenements.js"></script>
+<script src="js/modules/stock-fournisseurs.js"></script>
+<script src="js/modules/rh.js"></script>
+<script src="js/modules/espace-client.js"></script>
+<script src="js/modules/rapports.js"></script>
+<script src="js/modules/utilisateurs.js"></script>
+<script src="js/modules/parametres-page.js"></script>
+<script src="js/modules/formulaires-auth.js"></script>
+<script src="js/core/listeners.js"></script>
+<script src="js/core/main.js"></script>
+</body>
+</html>

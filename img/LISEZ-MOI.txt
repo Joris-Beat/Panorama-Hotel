@@ -1,0 +1,8 @@
+Mettez dans ce dossier :
+
+  logo.png   -> le logo de l'hôtel (carré, environ 256 x 256 pixels)
+  login.jpg  -> la photo de la page de connexion (paysage, environ 1600 x 1000 pixels, moins de 500 Ko)
+
+Les noms doivent être exactement ceux-ci (en minuscules).
+Pour utiliser d'autres noms ou formats, modifiez la fin du fichier config.js.
+Si une image manque, l'application garde son logo et son décor d'origine.

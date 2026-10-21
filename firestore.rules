@@ -1,0 +1,151 @@
+rules_version = '2';
+
+// Panorama Hotel Manager — règles de sécurité Firestore
+// À coller dans Firebase > Firestore Database > Règles, puis « Publier ».
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---------- fonctions ----------
+    function signedIn() {
+      return request.auth != null;
+    }
+    function userPath() {
+      return /databases/$(database)/documents/users/$(request.auth.uid);
+    }
+    function isStaff() {
+      return signedIn() && exists(userPath()) && get(userPath()).data.active != false;
+    }
+    function isAdmin() {
+      return isStaff() && get(userPath()).data.roleId == 'admin';
+    }
+    // L'installation (premier administrateur) n'est possible que tant que meta/setup n'existe pas.
+    function setupOpen() {
+      return !exists(/databases/$(database)/documents/meta/setup);
+    }
+    // Niveau de permission du rôle de l'utilisateur pour un module (0, 1 lecture, 2 écriture).
+    function lvl(mod) {
+      return isAdmin() ? 2 : (
+        isStaff()
+        && exists(/databases/$(database)/documents/roles/$(get(userPath()).data.roleId))
+        ? get(/databases/$(database)/documents/roles/$(get(userPath()).data.roleId)).data.perms.get(mod, 0)
+        : 0
+      );
+    }
+
+    // ---------- installation et réglages ----------
+    match /meta/{id} {
+      allow get: if true;
+      allow create: if id == 'setup' && signedIn() && setupOpen();
+    }
+
+    match /settings/{id} {
+      allow read: if true;
+      allow create: if isAdmin() || (signedIn() && setupOpen());
+      allow update: if isAdmin()
+        || (isStaff() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['resNext', 'invoiceNext']));
+      allow delete: if isAdmin();
+    }
+
+    // ---------- comptes et rôles ----------
+    match /users/{uid} {
+      allow read: if isStaff() || (signedIn() && request.auth.uid == uid);
+      allow create: if isAdmin()
+        || (signedIn() && request.auth.uid == uid && setupOpen()
+            && request.resource.data.roleId == 'admin' && request.resource.data.active == true);
+      allow update: if isAdmin()
+        || (isStaff() && request.auth.uid == uid
+            && request.resource.data.roleId == resource.data.roleId
+            && request.resource.data.active == resource.data.active);
+      allow delete: if isAdmin();
+    }
+
+    match /roles/{id} {
+      allow read: if isStaff();
+      allow create: if isAdmin() || (signedIn() && setupOpen());
+      allow update, delete: if isAdmin();
+    }
+
+    // ---------- données publiques (lecture) ----------
+    match /rooms/{id} {
+      allow read: if true;
+      allow write: if isStaff();
+    }
+
+    // ---------- données du personnel ----------
+    match /{col}/{id} {
+      allow read, write: if isStaff() && col in [
+        'clients', 'reservations', 'charges', 'payments', 'pending', 'housekeeping',
+        'maintenance', 'stock', 'stockMoves', 'suppliers', 'events', 'menu', 'orders',
+        'staff', 'attendance', 'leaves', 'shifts', 'nights', 'track'
+      ];
+      // la paie et le journal suivent les permissions du rôle
+      allow read: if col == 'payroll' && lvl('payroll') >= 1;
+      allow write: if col == 'payroll' && lvl('payroll') >= 2;
+      allow read: if col == 'log' && lvl('log') >= 1;
+      allow create: if col == 'log' && isStaff();
+    }
+
+    // ---------- réservation en ligne (clients non connectés) ----------
+
+    // Nuits occupées : lisibles par tous, création seulement (jamais de modification).
+    // Un identifiant unique par chambre et par nuit empêche deux clients de réserver la même nuit.
+    match /nights/{id} {
+      allow get, list: if true;
+      allow create: if request.resource.data.keys().hasOnly(['roomId', 'date', 'resId'])
+        && request.resource.data.roomId is string
+        && request.resource.data.date is string
+        && request.resource.data.date.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+        && id == request.resource.data.roomId + '_' + request.resource.data.date;
+    }
+
+    match /clients/{id} {
+      allow create: if request.resource.data.keys().hasOnly(['id', 'name', 'phone', 'email', 'nationality'])
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.name.size() <= 120
+        && request.resource.data.phone is string
+        && request.resource.data.phone.size() <= 40;
+    }
+
+    match /reservations/{id} {
+      allow create: if request.resource.data.keys().hasOnly([
+          'id', 'no', 'clientId', 'roomId', 'in', 'out', 'adults', 'children', 'rate', 'discount',
+          'source', 'status', 'online', 'payPlan', 'payMethod', 'notes', 'createdAt', 'by', 'nk'
+        ])
+        && request.resource.data.online == true
+        && request.resource.data.status == 'Confirmée'
+        && request.resource.data.source == 'En ligne'
+        && request.resource.data.by == 'Client (en ligne)'
+        && request.resource.data.discount == 0
+        && request.resource.data.no.matches('^W-[A-Z0-9]{6}$')
+        && request.resource.data.payPlan in ['full', 'half', 'later']
+        && request.resource.data.nk.size() <= 31
+        // le tarif doit être celui de la chambre
+        && request.resource.data.rate == get(/databases/$(database)/documents/rooms/$(request.resource.data.roomId)).data.rate;
+    }
+
+    // Paiements annoncés par le client : à vérifier par le personnel.
+    match /pending/{id} {
+      allow create: if request.resource.data.keys().hasOnly(['id', 'resId', 'amount', 'mode', 'ref', 'payerPhone', 'date', 'ts'])
+        && request.resource.data.amount is number
+        && request.resource.data.amount > 0
+        && request.resource.data.amount < 100000000
+        && request.resource.data.mode in ['Mobile money', 'Virement bancaire']
+        && request.resource.data.ref is string
+        && request.resource.data.ref.size() <= 80;
+    }
+
+    // Suivi : lisible seulement si l'on connaît l'identifiant (empreinte du code + téléphone).
+    match /track/{id} {
+      allow get: if true;
+      allow create: if id.matches('^[a-f0-9]{64}$')
+        && request.resource.data.keys().hasOnly([
+          'resId', 'no', 'name', 'phone', 'hotel', 'hotelPhone', 'checkin', 'checkout', 'roomType', 'roomNo',
+          'in', 'out', 'nights', 'adults', 'children', 'total', 'paid', 'pending', 'status', 'plan', 'method', 'updated'
+        ])
+        && request.resource.data.paid == 0
+        && request.resource.data.status == 'Confirmée';
+    }
+  }
+}
